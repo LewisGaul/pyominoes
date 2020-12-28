@@ -24,5 +24,3 @@ Calculate the number of unique 'ominoes' exist for a given number of squares.
 
 
 Run with `python3 omino.py` (no external dependencies).
-
-Currently hardcoded to find 4-ominoes!
