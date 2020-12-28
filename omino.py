@@ -1,245 +1,130 @@
-import array
-
-
 class Omino:
     def __init__(self, size):
+        self._points = set()
         self.size = size
-        self.grid = array.array("i", [0] * size * size)
 
     def __str__(self):
         ret = ""
         for y in range(self.size - 1, -1, -1):
             for x in range(self.size):
-                ret = ret + str(self.get(x, y))
+                if (x, y) in self._points:
+                    ret += "#"
+                else:
+                    ret += "."
             ret = ret + "\n"
         return ret
 
+    def _as_tuple(self):
+        lst = []
+        for p in self._points:
+            lst.append(p[0] + (p[1] * self.size))
+        lst.sort()
+        return tuple(lst)
+
     def __eq__(self, other):
-        return self.grid == other.grid
+        if isinstance(other, type(self)):
+            return self._as_tuple() == other._as_tuple()
+        return super().__eq__(other)
 
-    def set(self, x, y, value=1):
-        self.grid[self.get_linear_coord(x, y)] = value
+    def __hash__(self):
+        return hash(self._as_tuple())
 
-    def get(self, x, y):
-        return self.grid[self.get_linear_coord(x, y)]
+    def move_to_corner(self):
+        minx = miny = 1e99  # big!
+        for p in self._points:
+            minx = min(minx, p[0])
+            miny = min(miny, p[1])
+        new_points = set()
+        for p in self._points:
+            new_points.add((p[0] - minx, p[1] - miny))
+        self._points = new_points
 
-    def set_linear(self, i):
-        self.grid[i] = 1
+    def rotate(self):
+        new_points = set()
+        for p in self._points:
+            new_points.add((-p[1], p[0]))
+        self._points = new_points
+        self.move_to_corner()
 
-    def first_set_square(self):
-        i = 0
-        while self.grid[i] != 1:
-            i = i + 1
-        return i
+    def transpose(self):
+        new_points = set()
+        for p in self._points:
+            new_points.add((p[1], p[0]))
+        self._points = new_points
 
-    def get_xy_coord(self, i):
-        """Takes a linear coordinate, i, and returns the x, y coordinates."""
-        y = i // self.size
-        x = i % self.size
-        return x, y
+    def copy(self):
+        om = Omino(self.size)
+        om._points = set(self._points)
+        return om
 
-    def get_linear_coord(self, x, y):
-        """Take an x, y coordinate and return the linear coordinate."""
-        return (self.size * y) + x
+    def copy_bigger(self):
+        om = self.copy()
+        om.size = self.size + 1
+        return om
 
-    def find_set_neighbours(self, sq):
-        """Return a set of all the coloured-in neighbours of a square."""
-        sx, sy = self.get_xy_coord(sq)
-        neigh = []
-        x = sx - 1
-        y = sy
-        if x >= 0:
-            i = self.get_linear_coord(x, y)
-            if self.grid[i] == 1:
-                neigh.append(i)
-        x = sx + 1
-        y = sy
-        if x <= self.size - 1:
-            i = self.get_linear_coord(x, y)
-            if self.grid[i] == 1:
-                neigh.append(i)
-        x = sx
-        y = sy - 1
-        if y >= 0:
-            i = self.get_linear_coord(x, y)
-            if self.grid[i] == 1:
-                neigh.append(i)
-        x = sx
-        y = sy + 1
-        if y <= self.size - 1:
-            i = self.get_linear_coord(x, y)
-            if self.grid[i] == 1:
-                neigh.append(i)
-        return set(neigh)
-
-    def is_joined(self):
-        """Test if all the squares in a grid are joined together."""
-        sq = self.first_set_square()
-        clump = {sq}
-        neighbours = self.find_set_neighbours(sq)
-        newSquares = neighbours.difference(clump)
-        clump = clump.union(newSquares)
-        while len(newSquares) > 0:
-            sq = newSquares.pop()
-            neighbours = self.find_set_neighbours(sq)
-            new = neighbours.difference(clump)
-            newSquares = newSquares.union(new)
-            clump = clump.union(newSquares)
-        if len(clump) == self.size:
-            return True
-        else:
-            return False
-
-    def translate_left(self):
-        """Translate an omino one place to the left deleting the right column."""
-        for y in range(self.size):
-            for x in range(self.size - 1):
-                self.set(x, y, self.get(x + 1, y))
-            self.set(self.size - 1, y, 0)
-
-    def translate_down(self):
-        for x in range(self.size):
-            for y in range(self.size - 1):
-                self.set(x, y, self.get(x, y + 1))
-            self.set(x, self.size - 1, 0)
-
-    def is_left_empty(self):
-        """Check whether the left most column is empty"""
-        for y in range(self.size):
-            if self.get(0, y) == 1:
-                return False
-        return True
-
-    def is_bottom_empty(self):
-        for x in range(self.size):
-            if self.get(x, 0) == 1:
-                return False
-        return True
-
-    def translate_to_corner(self):
-        while self.is_left_empty():
-            self.translate_left()
-        while self.is_bottom_empty():
-            self.translate_down()
-
-    def get_reflection(self):
-        r = Omino(self.size)
-        for x in range(self.size):
-            for y in range(self.size):
-                c = self.get(x, y)
-                r.set(y, x, c)
-        return r
-
-    def get_rotation(self):
-        r = Omino(self.size)
-        mid = (self.size - 1) / 2.0
-        for x in range(self.size):
-            for y in range(self.size):
-                c = self.get(x, y)
-                nx = x - mid
-                ny = y - mid
-                rx = -ny
-                ry = nx
-                rx += mid
-                ry += mid
-                r.set(int(rx), int(ry), c)
-        r.translate_to_corner()
-        return r
-
-    def get_duplicates(self):
-        d = OminoCollection(self.size)
-        # create all rotations and translations
-        d._store.append(self)
-        rot = self.get_rotation()
-        d._store.append(rot)
-        rot = rot.get_rotation()
-        d._store.append(rot)
-        rot = rot.get_rotation()
-        d._store.append(rot)
-
-        ref = self.get_reflection()
-        d._store.append(ref)
-        rot = ref.get_rotation()
-        d._store.append(rot)
-        rot = rot.get_rotation()
-        d._store.append(rot)
-        rot = rot.get_rotation()
-        d._store.append(rot)
-
-        return d
+    def get_neighbours(self):
+        new_points = set()
+        for p in self._points:
+            new_points.add((p[0] - 1, p[1]))
+            new_points.add((p[0] + 1, p[1]))
+            new_points.add((p[0], p[1] - 1))
+            new_points.add((p[0], p[1] + 1))
+        return new_points.difference(self._points)
 
 
-class OminoCollection:
-    def __init__(self, omino_size):
-        self.size = omino_size
-        self._store = []
+def get_rot_and_mirror(om):
+    om_set = {om}
+    omr = om.copy()
+    omr.rotate()
+    om_set.add(omr)
+    omr = omr.copy()
+    omr.rotate()
+    om_set.add(omr)
+    omr = omr.copy()
+    omr.rotate()
+    om_set.add(omr)
+    omt = om.copy()
+    omt.transpose()
+    if omt in om_set:
+        return om_set
+    om_set.add(omt)
+    omt = omt.copy()
+    omt.rotate()
+    om_set.add(omt)
+    omt = omt.copy()
+    omt.rotate()
+    om_set.add(omt)
+    omt = omt.copy()
+    omt.rotate()
+    om_set.add(omt)
+    return om_set
 
-    def __repr__(self):
-        return "<Collection of {} {}-ominos>".format(len(self), self.size)
 
-    def __len__(self):
-        return len(self._store)
-
-    def __iter__(self):
-        return iter(self._store)
-
-    def make_all(self):
-        # this code will only work if size == 4
-        assert self.size == 4, "you must do 4-ominos for the moment"
-        sizeSq = self.size * self.size
-        # make all the possible grids with the right number of squares coloured in
-        for i in range(sizeSq - 3):
-            for j in range(i + 1, sizeSq - 2):
-                for k in range(j + 1, sizeSq - 1):
-                    for m in range(k + 1, sizeSq):
-                        om = Omino(self.size)
-                        om.set_linear(i)
-                        om.set_linear(j)
-                        om.set_linear(k)
-                        om.set_linear(m)
-                        # check if the squares are joined up
-                        if om.is_joined():
-                            # if so, move it to the bottom left corner
-                            om.translate_to_corner()
-                            # put it in the collection
-                            self._store.append(om)
-
-        # at this point we have all the ominoes but with all the
-        # duplicates from translation, rotation and reflection as well
-
-        # This removes all the translation duplicates
-        # Using while loops here because the size of the list changes
-        # as we go through it.
-        i = 0
-        while i < len(self._store) - 1:
-            j = i + 1
-            while j < len(self._store):
-                if self._store[i] == self._store[j]:
-                    self._store.pop(j)
-                else:
-                    # If we didn't find a match then move j along one,
-                    # otherwise we can leave j the same as the shapes have
-                    # moved along one instead.
-                    j += 1
-            i += 1
-
-        i = 0
-        while i < len(self._store) - 1:
-            # Take the ith omino and create all its reflections and rotations.
-            duplicates = self._store[i].get_duplicates()
-            for j in range(len(duplicates)):
-                k = i + 1
-                while k < len(self._store):
-                    if self._store[k] == duplicates._store[j]:
-                        self._store.pop(k)
-                    else:
-                        k += 1
-            i += 1
+def next_set(old_set):
+    newSet = set()
+    for om in old_set:
+        neighbours = om.get_neighbours()
+        for neigh in neighbours:
+            new_om = om.copy_bigger()
+            # add trial neighbour to newOm
+            new_om._points.add(neigh)
+            # add newOm to newSet
+            new_om.move_to_corner()
+            om_set = get_rot_and_mirror(new_om)
+            if om_set.isdisjoint(newSet):
+                newSet.add(new_om)
+    return newSet
 
 
 if __name__ == "__main__":
-    collection = OminoCollection(4)
-    collection.make_all()
-    print(collection)
-    for omino in collection:
-        print(omino)
+    omino = Omino(1)
+    omino._points.add((0, 0))
+    s = {omino}
+    i = 1
+    while True:
+        print("Found {} polyomino(es) of size {}".format(len(s), i))
+        if len(s) < 10:
+            for om in s:
+                print(om)
+        s = next_set(s)
+        i += 1
