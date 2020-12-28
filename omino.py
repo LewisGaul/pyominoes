@@ -1,5 +1,13 @@
 import time
 
+try:
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.units import cm
+
+    pdf_support = True
+except ImportError:
+    pdf_support = False
+
 
 class Omino:
     def __init__(self, points):
@@ -106,16 +114,14 @@ def next_set(old_set):
 
 
 def print_omino_set(om_set, filename, num_columns=160):
-    om_list = sorted(repr(om) for om in om_set)
-    om = om_list[0]
-    size = int(om.split("/")[0])
+    size = next(iter(om_set)).size
     num_on_line = num_columns // size
 
     line_buffer = ["" for _ in range(size)]
     with open(filename, "w") as f:
         c = 1
-        for om in om_list:
-            om_str = str(Omino(om))
+        for om in sorted(om_set, key=lambda x: repr(x)):
+            om_str = str(om)
             om_lines = om_str.split("\n")
             for i in range(size):
                 line_buffer[i] += om_lines[i] + " "
@@ -130,6 +136,25 @@ def print_omino_set(om_set, filename, num_columns=160):
             for line in line_buffer:
                 if "#" in line:
                     f.write(line[:-1] + "\n")
+
+
+def print_omino_set_pdf(om_set, filename):
+    num_per_row = 6
+    size = next(iter(om_set)).size
+    c = canvas.Canvas(filename)
+    c.setStrokeColorRGB(1, 0, 0)
+    c.setFillColorRGB(0, 0, 0)
+    sq = cm / 2
+    i = 0
+    for om in sorted(om_set, key=lambda x: repr(x)):
+        offx = (i % num_per_row) * sq * (size + 1)
+        offy = (i // num_per_row) * sq * (size + 1)
+        for p in om.points:
+            x, y = p
+            c.rect(offx + (x * sq), offy + (y * sq), sq, sq)
+        i += 1
+    c.showPage()
+    c.save()
 
 
 if __name__ == "__main__":
@@ -148,6 +173,8 @@ if __name__ == "__main__":
             for om in s:
                 print(om)
         print_omino_set(s, "{}ominoes.txt".format(i))
+        if pdf_support:
+            print_omino_set_pdf(s, "{}ominoes.pdf".format(i))
         t1 = t2
         s = next_set(s)
         i += 1
