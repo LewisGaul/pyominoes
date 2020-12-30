@@ -1,4 +1,6 @@
 import time
+from collections import namedtuple
+from typing import Set
 
 try:
     from reportlab.pdfgen import canvas
@@ -9,31 +11,37 @@ except ImportError:
     pdf_support = False
 
 
+Point = namedtuple("Point", "x, y")
+
+
 class Omino:
-    def __init__(self, points):
+    def __init__(self, points: str):
+        """
+        :param points:
+            The points representation, of the form:
+            "<size>/ <point> . <point> . ..."
+            e.g. "3/0.3.4".
+        """
         size, points = points.split("/")
-        self.size = int(size)
-        self.points = set()
-        for p in points.split("."):
-            self.points.add((int(p) % self.size, int(p) // self.size))
+        self.size: int = int(size)
+        self.points: Set[Point] = {
+            Point(int(p) % self.size, int(p) // self.size) for p in points.split(".")
+        }
 
     def __str__(self):
-        ret = ""
-        for y in range(self.size - 1, -1, -1):
-            for x in range(self.size):
-                if (x, y) in self.points:
-                    ret += "#"
-                else:
-                    ret += "."
-            ret = ret + "\n"
-        return ret[:-1]
+        lines = []
+        for y in range(self.size):
+            lines.append(
+                "".join(
+                    "#" if Point(x, y) in self.points else "." for x in range(self.size)
+                )
+            )
+        return "\n".join(reversed(lines))
 
     def __repr__(self):
-        nums = sorted(p[0] + (p[1] * self.size) for p in self.points)
-        ret = "{:d}/".format(self.size)
-        for n in nums:
-            ret += "{:3d}.".format(n)
-        return ret[:-1]
+        nums = sorted(p.x + (p.y * self.size) for p in self.points)
+        points = ".".join("{:3d}".format(n) for n in nums)
+        return "{:d}/{}".format(self.size, points)
 
     def __eq__(self, other):
         if isinstance(other, type(self)):
@@ -43,48 +51,55 @@ class Omino:
     def __hash__(self):
         return hash(repr(self))
 
-    def move_to_corner(self):
-        minx = miny = 1e99  # big!
-        for p in self.points:
-            minx = min(minx, p[0])
-            miny = min(miny, p[1])
-        new_points = set()
-        for p in self.points:
-            new_points.add((p[0] - minx, p[1] - miny))
-        self.points = new_points
+    def move_to_corner(self) -> None:
+        """
+        In-place move into the bottom-left corner (minimise x and y coords).
+        """
+        min_x = min(self.points, key=lambda p: p.x).x
+        min_y = min(self.points, key=lambda p: p.y).y
+        self.points = {Point(p.x - min_x, p.y - min_y) for p in self.points}
 
-    def rotate(self):
-        new_points = set()
-        for p in self.points:
-            new_points.add((-p[1], p[0]))
-        self.points = new_points
+    def rotate(self) -> None:
+        """
+        In-place rotate 90 degrees anti-clockwise and shift to the corner.
+        """
+        self.points = {Point(-p.y, p.x) for p in self.points}
         self.move_to_corner()
 
-    def transpose(self):
-        new_points = set()
-        for p in self.points:
-            new_points.add((p[1], p[0]))
-        self.points = new_points
+    def transpose(self) -> None:
+        """
+        In-place switch x and y coordinates (reflect in the line y=x).
+        """
+        self.points = {Point(p.y, p.x) for p in self.points}
 
-    def copy(self):
-        om = Omino(repr(self))
-        return om
+    def copy(self) -> "Omino":
+        return Omino(repr(self))
 
-    def copy_bigger(self):
+    # @@@ This returns an inconsistent object.
+    def copy_bigger(self) -> "Omino":
+        """
+        Create a copy and increment the size by one.
+        """
         om = self.copy()
         om.size = self.size + 1
         return om
 
-    def get_neighbours(self):
+    def get_free_neighbours(self) -> Set[Point]:
+        """
+        Get a set of available points adjacent to occupied points.
+        """
         new_points = set()
         for p in self.points:
-            new_points.add((p[0] - 1, p[1]))
-            new_points.add((p[0] + 1, p[1]))
-            new_points.add((p[0], p[1] - 1))
-            new_points.add((p[0], p[1] + 1))
-        return new_points.difference(self.points)
+            new_points.add(Point(p.x - 1, p.y))
+            new_points.add(Point(p.x + 1, p.y))
+            new_points.add(Point(p.x, p.y - 1))
+            new_points.add(Point(p.x, p.y + 1))
+        return new_points - self.points
 
-    def canonicalise(self):
+    def canonicalise(self) -> None:
+        """
+        In-place transform to canonical representation.
+        """
         self.move_to_corner()
         rep = [repr(self)]
         for _ in range(3):
@@ -95,15 +110,14 @@ class Omino:
         for _ in range(3):
             self.rotate()
             rep.append(repr(self))
-        rep.sort()
-        om = Omino(rep[0])
+        om = Omino(min(rep))
         self.points = om.points
 
 
 def next_set(old_set):
     new_set = set()
     for old_om in old_set:
-        neighbours = old_om.get_neighbours()
+        neighbours = old_om.get_free_neighbours()
         for neigh in neighbours:
             new_om = old_om.copy_bigger()
             # add trial neighbour to new_om
