@@ -161,8 +161,8 @@ def print_omino_set_pdf(om_set, filename):
     sq = cm / 2
     i = 0
     for om in sorted(om_set, key=lambda x: repr(x)):
-        offx = (i % num_per_row) * sq * (size + 1)
-        offy = (i // num_per_row) * sq * (size + 1)
+        offx = (i % num_per_row) * sq * (size + 1) + cm
+        offy = (i // num_per_row) * sq * (size + 1) + cm
         for p in om.points:
             x, y = p
             c.rect(offx + (x * sq), offy + (y * sq), sq, sq)
